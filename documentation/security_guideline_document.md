@@ -1,116 +1,175 @@
-# Security Guidelines for codeguide-starter
+# Security Guidelines for angkatan-cash-manager
 
-This document defines mandatory security principles and implementation best practices tailored to the **codeguide-starter** repository. It aligns with Security-by-Design, Least Privilege, Defense-in-Depth, and other core security tenets. All sections reference specific areas of the codebase (e.g., `/app/api/auth/route.ts`, CSS files, environment configuration) to ensure practical guidance.
-
----
-
-## 1. Security by Design
-
-• Embed security from day one: review threat models whenever adding new features (e.g., new API routes, data fetching).
-• Apply “secure defaults” in Next.js configuration (`next.config.js`), enabling strict mode and disabling debug flags in production builds.
-• Maintain a security checklist in your PR template to confirm that each change has been reviewed against this guideline.
+This document outlines security best practices and controls tailored to your angkatan-cash-manager class treasury application. It aligns with industry standards and the core security principles of security by design, least privilege, defense in depth, and secure defaults.
 
 ---
 
-## 2. Authentication & Access Control
+## 1. Authentication & Access Control
 
-### 2.1 Password Storage
-- Use **bcrypt** (or Argon2) with a per-user salt to hash passwords in `/app/api/auth/route.ts`.
-- Enforce a strong password policy on both client and server: minimum 12 characters, mixed case, numbers, and symbols.
+1.1. Role-Based Access Control (RBAC)
+- Define two roles: **`treasurer`** and **`student`**.  
+- Store `role` in the users table (Drizzle schema).  
+- Enforce role checks server-side in every API route and page.
+  - E.g., a middleware that rejects non-treasurer access to `/api/payments?status=pending`.
 
-### 2.2 Session Management
-- Issue sessions via Secure, HttpOnly, SameSite=strict cookies. Do **not** expose tokens to JavaScript.
-- Implement absolute and idle timeouts. For example, invalidate sessions after 30 minutes of inactivity.
-- Protect against session fixation by regenerating session IDs after authentication.
+1.2. Clerk Integration
+- Use Clerk’s Next.js SDK for authentication and session management.  
+- Wrap the root layout with `<ClerkProvider>`.  
+- Use Clerk hooks (`useUser`, `withAuth`) to obtain user identity & roles.
 
-### 2.3 Brute-Force & Rate Limiting
-- Apply rate limiting at the API layer (e.g., using `express-rate-limit` or Next.js middleware) on `/api/auth` to throttle repeated login attempts.
-- Introduce exponential backoff or temporary lockout after N failed attempts.
+1.3. Session Security
+- Ensure Clerk session cookies have `Secure`, `HttpOnly`, and `SameSite=Lax` or stricter.  
+- Configure idle and absolute timeouts in Clerk settings.  
+- Provide explicit logout endpoints to terminate sessions server-side.
 
-### 2.4 Role-Based Access Control (Future)
-- Define user roles in your database model (e.g., `role = 'user' | 'admin'`).
-- Enforce server-side authorization checks in every protected route (e.g., in `dashboard/layout.tsx` loader functions).
-
----
-
-## 3. Input Handling & Processing
-
-### 3.1 Validate & Sanitize All Inputs
-- On **client** (`sign-up/page.tsx`, `sign-in/page.tsx`): perform basic format checks (email regex, password length).
-- On **server** (`/app/api/auth/route.ts`): re-validate inputs with a schema validator (e.g., `zod`, `Joi`).
-- Reject or sanitize any unexpected fields to prevent injection attacks.
-
-### 3.2 Prevent Injection
-- If you introduce a database later, always use parameterized queries or an ORM (e.g., Prisma) rather than string concatenation.
-- Avoid dynamic `eval()` or template rendering with unsanitized user input.
-
-### 3.3 Safe Redirects
-- When redirecting after login or logout, validate the target against an allow-list to prevent open redirects.
+1.4. Multi-Factor Authentication (MFA)
+- Enable MFA in Clerk for treasurer accounts.  
+- Require at least one second factor (OTP or push) for high-privilege actions (e.g., approving payments).
 
 ---
 
-## 4. Data Protection & Privacy
+## 2. Input Handling & Processing
 
-### 4.1 Encryption & Secrets
-- Enforce HTTPS/TLS 1.2+ for all front-end ↔ back-end communications.
-- Never commit secrets—use environment variables and a secrets manager (e.g., AWS Secrets Manager, Vault).
+2.1. Server-Side Validation
+- Never trust client input.  
+- Use Zod or Joi to validate all request bodies, query params, path params in Next.js API routes.
 
-### 4.2 Sensitive Data Handling
-- Do ​not​ log raw passwords, tokens, or PII in server logs. Mask or redact any user identifiers.
-- If storing PII in `data.json` or a future database, classify it and apply data retention policies.
+2.2. Prevent Injection Attacks
+- Use Drizzle ORM’s parameterized queries for all database operations.  
+- Avoid string interpolation in SQL.  
+- Sanitize any dynamic fields used in raw queries.
 
----
+2.3. Prevent Cross-Site Scripting (XSS)
+- Escape and encode all user-supplied text in React components.  
+- Use React’s default escaping for JSX.  
+- If rendering HTML, run it through a sanitizer like DOMPurify.
 
-## 5. API & Service Security
-
-### 5.1 HTTPS Enforcement
-- In production, redirect all HTTP traffic to HTTPS (e.g., via Vercel’s redirect rules or custom middleware).
-
-### 5.2 CORS
-- Configure `next.config.js` or API middleware to allow **only** your front-end origin (e.g., `https://your-domain.com`).
-
-### 5.3 API Versioning & Minimal Exposure
-- Version your API routes (e.g., `/api/v1/auth`) to handle future changes without breaking clients.
-- Return only necessary fields in JSON responses; avoid leaking internal server paths or stack traces.
+2.4. Secure File Uploads (Payment Proofs)
+- Restrict file types to images/PDF only.  
+- Enforce maximum file size (e.g., 5 MB).  
+- Store uploads in an isolated bucket (e.g., Supabase Storage) with signed URLs.  
+- Scan uploads for malware (integrate with a scanning API).
 
 ---
 
-## 6. Web Application Security Hygiene
+## 3. Data Protection & Privacy
 
-### 6.1 CSRF Protection
-- Use anti-CSRF tokens for any state-changing API calls. Integrate Next.js CSRF middleware or implement synchronizer tokens stored in cookies.
+3.1. Data in Transit
+- Enforce HTTPS (TLS≥1.2) via Next.js custom server or hosting platform settings.  
+- Redirect all HTTP traffic to HTTPS.
 
-### 6.2 Security Headers
-- In `next.config.js` (or a custom server), add these headers:
-  - `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload`
-  - `X-Content-Type-Options: nosniff`
-  - `X-Frame-Options: DENY`
-  - `Referrer-Policy: no-referrer-when-downgrade`
-  - `Content-Security-Policy`: restrict script/style/src to self and trusted CDNs.
+3.2. Data at Rest
+- Supabase automatically encrypts PostgreSQL data at rest.  
+- Consider column-level encryption for highly sensitive fields (e.g., payment details).
 
-### 6.3 Secure Cookies
-- Set `Secure`, `HttpOnly`, `SameSite=Strict` on all cookies. Avoid storing sensitive data in `localStorage`.
+3.3. Secrets Management
+- Do not hardcode keys in source.  
+- Store Supabase URL/keys and Clerk API keys in environment variables.  
+- Use a secrets management solution (e.g., Vercel Env, AWS Secrets Manager) in CI/CD.
 
-### 6.4 Prevent XSS
-- Escape or encode all user-supplied data in React templates. Avoid `dangerouslySetInnerHTML` unless content is sanitized.
-
----
-
-## 7. Infrastructure & Configuration Management
-
-- Harden your hosting environment (e.g., Vercel/Netlify) by disabling unnecessary endpoints (GraphQL/GraphiQL playgrounds in production).
-- Rotate secrets and API keys regularly via your secrets manager.
-- Maintain minimal privileges: e.g., database accounts should only have read/write on required tables.
-- Keep Node.js, Next.js, and all system packages up to date.
+3.4. Logging & Masking
+- Mask PII (emails, payment references) in logs.  
+- Do not log stack traces or database errors to client responses.  
+- Centralize logs in a secure logging service (e.g., Datadog, LogDNA).
 
 ---
 
-## 8. Dependency Management
+## 4. API & Service Security
 
-- Commit and maintain `package-lock.json` to guarantee reproducible builds.
-- Integrate a vulnerability scanner (e.g., GitHub Dependabot, Snyk) to monitor and alert on CVEs in dependencies.
-- Trim unused packages; each added library increases the attack surface.
+4.1. HTTPS & CORS
+- Enforce HTTPS on all API endpoints.  
+- Configure CORS to allow only your frontend origin.
+
+4.2. Rate Limiting & Throttling
+- Implement rate limiting middleware (e.g., `express-rate-limit` or Next.js Edge Middleware) on critical endpoints:
+  - Login, registration, payment submission, approval endpoints.
+
+4.3. API Versioning
+- Prefix routes with `/api/v1/…`.  
+- Plan for backward-compatible changes.
+
+4.4. Least Privilege for Database
+- Create a Supabase database user with only necessary privileges:
+  - `SELECT`/`INSERT` on payments for students.  
+  - `UPDATE` on payments only for treasurer.  
+  - `SELECT` on expenses for all roles.
 
 ---
 
-Adherence to these guidelines will ensure that **codeguide-starter** remains secure, maintainable, and resilient as it evolves. Regularly review and update this document to reflect new threats and best practices.
+## 5. Web Application Security Hygiene
+
+5.1. Security Headers
+- Content-Security-Policy: restrict scripts/styles to self and trusted CDNs.  
+- Strict-Transport-Security: max-age=31536000; includeSubDomains; preload.  
+- X-Frame-Options: DENY.  
+- X-Content-Type-Options: nosniff.  
+- Referrer-Policy: no-referrer-when-downgrade.
+
+5.2. CSRF Protection
+- For any state-changing form/API, implement CSRF tokens (e.g., NextAuth’s CSRF or custom synchronizer tokens).
+
+5.3. Secure Cookies
+- Set cookies with `Secure`, `HttpOnly`, and `SameSite=Strict` (or Lax for cross-page embeds).
+
+5.4. Subresource Integrity (SRI)
+- Apply SRI hashes when including any third-party scripts or styles.
+
+---
+
+## 6. Infrastructure & Configuration Management
+
+6.1. Server Hardening
+- Disable unused services on the hosting environment.  
+- Keep OS and runtime dependencies up to date.
+
+6.2. Environment Segregation
+- Use separate Supabase projects for dev, staging, and production.  
+- Enforce different API keys and restrict origins per environment.
+
+6.3. Secret Rotation & Revocation
+- Rotate Supabase and Clerk keys quarterly or after suspected compromise.  
+- Revoke unused credentials immediately.
+
+---
+
+## 7. Dependency Management & CI/CD
+
+7.1. Secure Dependencies
+- Maintain and audit `package-lock.json`.  
+- Integrate SCA tools (e.g., Snyk, Dependabot) to detect vulnerable packages.
+
+7.2. Minimal Footprint
+- Only install required packages (avoid unnecessary utilities).  
+- Review transitive dependencies regularly.
+
+7.3. CI/CD Pipeline
+- Run linting, type checking, and unit/integration tests on every PR.  
+- Fail builds on high/critical vulnerabilities or test coverage drops.
+
+---
+
+## 8. Error Handling & Monitoring
+
+8.1. Fail Securely
+- Catch and handle exceptions in API routes; return generic error messages.  
+- Do not expose stack traces or internal details in production.
+
+8.2. Monitoring & Alerts
+- Integrate application performance monitoring (APM).  
+- Set alerts for error rate spikes, high latency, or rate limit breaches.
+
+8.3. Audit Trails
+- Log all payment creation, approval, and rejection actions with user ID and timestamp.  
+- Store logs in an append-only, access-controlled store.
+
+---
+
+## 9. Ongoing Security Practices
+
+- Schedule quarterly security reviews and dependency audits.  
+- Conduct penetration testing before major releases.  
+- Update documentation and train team members on secure coding practices.
+
+---
+
+*By following this layered, security-by-design approach, the angkatan-cash-manager treasury application will maintain resilience against common threats while ensuring data integrity, confidentiality, and availability.*

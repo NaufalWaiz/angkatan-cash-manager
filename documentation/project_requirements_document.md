@@ -1,117 +1,100 @@
-# Project Requirements Document: codeguide-starter
-
----
+# Project Requirements Document (PRD)
 
 ## 1. Project Overview
+**Paragraph 1**  
+The “angkatan-cash-manager” is a web application designed to streamline and modernize how a class treasury collects, approves, and reports financial transactions. It solves the common problems of manual payment tracking, lack of transparency, and cumbersome approval workflows by offering a digital dashboard, role-based access, and a structured database. Students can submit payment proofs, and Treasurers can quickly approve or reject them, all within a single, cohesive interface.
 
-The **codeguide-starter** project is a boilerplate web application that provides a ready-made foundation for any web project requiring secure user authentication and a post-login dashboard. It sets up the common building blocks—sign-up and sign-in pages, API routes to handle registration and login, and a simple dashboard interface driven by static data. By delivering this skeleton, it accelerates development time and ensures best practices are in place from day one.
-
-This starter kit is being built to solve the friction developers face when setting up repeated common tasks: credential handling, session management, page routing, and theming. Key objectives include: 1) delivering a fully working authentication flow (registration & login), 2) providing a gated dashboard area upon successful login, 3) establishing a clear, maintainable project structure using Next.js and TypeScript, and 4) demonstrating a clean theming approach with global and section-specific CSS. Success is measured by having an end-to-end login journey in under 200 lines of code and zero runtime type errors.
-
----
+**Paragraph 2**  
+This project is being built to increase accountability, reduce administrative overhead, and provide clear, real-time insights into class funds. Key success criteria include secure user authentication, accurate role-based permissions, reliable data storage in Supabase, and an intuitive user interface that works well on both desktop and mobile browsers. The first version will demonstrate end-to-end flow: student submissions, treasurer approvals, and public expense visibility.
 
 ## 2. In-Scope vs. Out-of-Scope
 
-### In-Scope (Version 1)
-- User registration (sign-up) form with validation
-- User login (sign-in) form with validation
-- Next.js API routes under `/api/auth/route.ts` handling:
-  - Credential validation
-  - Password hashing (e.g., bcrypt)
-  - Session creation or JWT issuance
-- Protected dashboard pages under `/dashboard`:
-  - `layout.tsx` wrapping dashboard content
-  - `page.tsx` rendering static data from `data.json`
-- Global application layout in `/app/layout.tsx`
-- Basic styling via `globals.css` and `dashboard/theme.css`
-- TypeScript strict mode enabled
+**In-Scope (Version 1)**
+- User registration and login via Clerk (authentication and user management).
+- Two roles: **Student** and **Treasurer**, enforced across UI and API.
+- Protected dashboard showing:
+  - For Students: total collected amount and summary of class expenses.
+  - For Treasurers: a queue of pending payment submissions in a data table.
+- Payment submission page with form (receipt upload, amount, description).
+- Treasurer approval interface: approve/reject buttons on each payment.
+- Public expenses page listing all approved class expenditures.
+- Database integration with Supabase using Drizzle ORM (PostgreSQL).
+- Basic styling and layout using Tailwind CSS v4 and shadcn/ui.
 
-### Out-of-Scope (Later Phases)
-- Integration with a real database (PostgreSQL, MongoDB, etc.)
-- Advanced authentication flows (password reset, email verification, MFA)
-- Role-based access control (RBAC)
-- Multi-tenant or white-label theming
-- Unit, integration, or end-to-end testing suites
-- CI/CD pipeline and production deployment scripts
-
----
+**Out-of-Scope (Phase 1)**
+- Mobile-native apps (Android/iOS).
+- Push or email notifications on payment status changes.
+- Advanced reporting (charts beyond summary cards) or CSV exports.
+- Multi-class or multi-group support.
+- Offline mode or PWA features.
+- Separate Go backend (all logic lives in Next.js API routes).
 
 ## 3. User Flow
+**Paragraph 1**  
+A **new user** lands on the public homepage and chooses to sign up via Clerk. After email verification, they log in and land on the dashboard: a top navbar shows their name and a logout button; a left sidebar holds links to “Dashboard,” “Submit Payment,” and “Expenses.” Students see summary cards (total collected, total expenses) and can click “Submit Payment” to open a form. They fill in amount, upload receipt image, add notes, and click “Submit.” The form calls `POST /api/payments`, stores data in Supabase, and returns to the dashboard with a success message.
 
-A new visitor lands on the root URL and sees a welcome page with options to **Sign Up** or **Sign In**. If they choose Sign Up, they fill in their email, password, and hit “Create Account.” The form submits to `/api/auth/route.ts`, which hashes the password, creates a new user session or token, and redirects them to the dashboard. If any input is invalid, an inline error message explains the issue (e.g., “Password too short”).
-
-Once authenticated, the user is taken to the `/dashboard` route. Here they see a sidebar or header defined by `dashboard/layout.tsx`, and the main panel pulls in static data from `data.json`. They can log out (if that control is present), but otherwise their entire session is managed by server-side cookies or tokens. Returning users go directly to Sign In, submit credentials, and upon success they land back on `/dashboard`. Any unauthorized access to `/dashboard` redirects back to Sign In.
-
----
+**Paragraph 2**  
+A **Treasurer** logs in the same way but sees the dashboard populated with a DataTable of pending payments. Each row has “Approve” and “Reject” buttons. Clicking one sends a `PATCH /api/payments/:id` request. The table refreshes to remove processed items. The Treasurer can also click “Expenses” to view a public list of all approved class expenses, fetched via `GET /api/expenses`. Throughout, role checks in middleware ensure Students cannot access Treasurer screens and vice versa.
 
 ## 4. Core Features
-
-- **Sign-Up Page (`/app/sign-up/page.tsx`)**: Form fields for email & password, client-side validation, POST to `/api/auth`.
-- **Sign-In Page (`/app/sign-in/page.tsx`)**: Form fields for email & password, client-side validation, POST to `/api/auth`.
-- **Authentication API (`/app/api/auth/route.ts`)**: Handles both registration and login based on HTTP method, integrates password hashing (bcrypt) and session or JWT logic.
-- **Global Layout (`/app/layout.tsx` + `globals.css`)**: Shared header, footer, and CSS resets across all pages.
-- **Dashboard Layout (`/app/dashboard/layout.tsx` + `dashboard/theme.css`)**: Sidebar or top nav for authenticated flows, section-specific styling.
-- **Dashboard Page (`/app/dashboard/page.tsx`)**: Reads `data.json`, renders it as cards or tables.
-- **Static Data Source (`/app/dashboard/data.json`)**: Example dataset to demo dynamic rendering.
-- **TypeScript Configuration**: `tsconfig.json` with strict mode and path aliases (if any).
-
----
+- **Authentication & User Management**  
+  - Clerk integration for sign-up, login, and session handling.
+  - Role assignment (Student, Treasurer) stored in user metadata.
+- **Role-Based Access Control (RBAC)**  
+  - Middleware that checks `user.role` on protected pages and API routes.
+- **Dashboard**  
+  - Summary cards (total collected funds, total expenses).
+  - DataTable for pending payments (Treasurer view).
+- **Payment Submission**  
+  - Form with amount, description, file upload component.
+  - `POST /api/payments` endpoint for new payments.
+- **Payment Approval Workflow**  
+  - `PATCH /api/payments/:id` to update status (approved/rejected).
+  - Immediate UI update in DataTable.
+- **Expense Tracking**  
+  - `GET /api/expenses` endpoint for approved payments.
+  - Public-facing DataTable with pagination and search.
+- **Database Schema**  
+  - `users` table with `role` column.
+  - `payments` table (id, userId, amount, receiptUrl, status, createdAt).
+  - `expenses` view or table (approved payments summary).
+- **UI Components**  
+  - Reusable SectionCards, ChartAreaInteractive (for future charts).
+  - `shadcn/ui` Form, Input, Button components.
+- **API Routes**  
+  - Next.js API routes under `/app/api` for payments and expenses.
 
 ## 5. Tech Stack & Tools
-
-- **Framework**: Next.js (App Router) for file-based routing, SSR/SSG, and API routes.
-- **Language**: TypeScript for type safety.
-- **UI Library**: React 18 for component-based UI.
-- **Styling**: Plain CSS via `globals.css` (global reset) and `theme.css` (sectional styling). Can easily migrate to CSS Modules or Tailwind in the future.
-- **Backend**: Node.js runtime provided by Next.js API routes.
-- **Password Hashing**: bcrypt (npm package).
-- **Session/JWT**: NextAuth.js or custom JWT logic (to be decided in implementation).
-- **IDE & Dev Tools**: VS Code with ESLint, Prettier extensions. Optionally, Cursor.ai for AI-assisted coding.
-
----
+- **Frontend**: Next.js (App Router), React 18, TypeScript.
+- **UI & Styling**: Tailwind CSS v4, shadcn/ui component library.
+- **Authentication**: Clerk Next.js SDK (server and client integration).
+- **Backend/API**: Next.js API Routes (Node.js), TypeScript.
+- **Database**: Supabase (PostgreSQL) with Drizzle ORM for type-safe queries.
+- **File Storage**: Supabase Storage (for receipt uploads).
 
 ## 6. Non-Functional Requirements
-
-- **Performance**: Initial page load under 200 ms on a standard broadband connection. API responses under 300 ms.
+- **Performance**: API response under 200ms for common queries; SSR for dashboard summary.
 - **Security**:
-  - HTTPS only in production.
-  - Proper CORS, CSRF protection for API routes.
-  - Secure password storage (bcrypt with salt).
-  - No credentials or secrets checked into version control.
-- **Scalability**: Structure must support adding database integration, caching layers, and advanced auth flows without rewiring core app.
-- **Usability**: Forms should give real-time feedback on invalid input. Layout must be responsive (mobile > 320 px).
-- **Maintainability**: Code must adhere to TypeScript strict mode. Linting & formatting enforced by ESLint/Prettier.
-
----
+  - All routes served over HTTPS.
+  - Role checks in middleware before page render or API logic.
+  - Validate and sanitize file uploads; enforce 5MB max size.
+- **Reliability**: 99.9% uptime assumed on Supabase; retry logic for transient DB errors.
+- **Scalability**: Modular component design; can add features without major refactor.
+- **Usability**: Responsive design (mobile, tablet, desktop); clear error/success messaging.
 
 ## 7. Constraints & Assumptions
-
-- **No Database**: Dashboard uses only `data.json`; real database integration is deferred.
-- **Node Version**: Requires Node.js >= 14.
-- **Next.js Version**: Built on Next.js 13+ App Router.
-- **Authentication**: Assumes availability of bcrypt or NextAuth.js at implementation time.
-- **Hosting**: Targets serverless or Node.js-capable hosting (e.g., Vercel, Netlify).
-- **Browser Support**: Modern evergreen browsers; no IE11 support required.
-
----
+- **Supabase** project and credentials must be provisioned before development.
+- **Clerk** account and API keys are available for auth integration.
+- Users will be manually assigned “Treasurer” role via Clerk dashboard or admin API.
+- Environment supports Node.js 18+, Next.js 14+.
+- No third-party notification or payment gateway integrations in v1.
 
 ## 8. Known Issues & Potential Pitfalls
-
-- **Static Data Limitation**: `data.json` is only for demo. A real API or database will be needed to avoid stale data.
-  *Mitigation*: Define a clear interface for data fetching so swapping to a live endpoint is trivial.
-
-- **Global CSS Conflicts**: Using global styles can lead to unintended overrides.
-  *Mitigation*: Plan to migrate to CSS Modules or utility-first CSS in Phase 2.
-
-- **API Route Ambiguity**: Single `/api/auth/route.ts` handling both sign-up and sign-in could get complex.
-  *Mitigation*: Clearly branch on HTTP method (`POST /register` vs. `POST /login`) or split into separate files.
-
-- **Lack of Testing**: No test suite means regressions can slip in.
-  *Mitigation*: Build a minimal Jest + React Testing Library setup in an early iteration.
-
-- **Error Handling Gaps**: Client and server must handle edge cases (network failures, malformed input).
-  *Mitigation*: Define a standard error response schema and show user-friendly messages.
+- **API Rate Limits**: Supabase free tier may throttle under heavy use—monitor and upgrade if needed.
+- **File Upload Size**: Large receipt images could impact performance—restrict size and use client-side compression.
+- **Race Conditions**: Two Treasurers approving the same payment—use row-level locking or check current status before updating.
+- **Clerk Quotas**: Excessive sign-ups could hit auth limits—plan for fallback.
+- **Time Zones**: Storing and displaying `createdAt` consistently—use UTC everywhere.
 
 ---
-
-This PRD should serve as the single source of truth for the AI model or any developer generating the next set of technical documents: Tech Stack Doc, Frontend Guidelines, Backend Structure, App Flow, File Structure, and IDE Rules. It contains all functional and non-functional requirements with no ambiguity, enabling seamless downstream development.
+*This PRD is the definitive guide for the AI model to generate detailed technical documents and code structure for angkatan-cash-manager without ambiguity.*

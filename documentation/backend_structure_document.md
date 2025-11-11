@@ -1,179 +1,200 @@
 # Backend Structure Document
 
-This document outlines the backend architecture, hosting, and infrastructure for the **codeguide-starter** project. It uses plain language so anyone can understand how the backend is set up and how it supports the application.
+This document outlines the backend setup for the angkatan-cash-manager application. It explains how components fit together, what technologies we’re using, and how the system stays fast, secure, and easy to maintain.
 
 ## 1. Backend Architecture
 
-- **Framework and Design Pattern**
-  - We use **Next.js API Routes** to handle all server-side logic. These routes live alongside the frontend code in the same repository, making development and deployment simpler.
-  - The backend follows a **layered pattern**:
-    1. **API Layer**: Receives requests (login, registration, data fetch).  
-    2. **Service Layer**: Contains the core business logic (user validation, password hashing).  
-    3. **Data Access Layer**: Talks to the database via a simple ORM (e.g., Prisma or TypeORM).
+Overall, our backend lives inside the same Next.js project that powers the frontend. We use Next.js API Routes to implement server-side logic. Here’s how it all fits:
 
-- **Scalability**
-  - Stateless API routes can scale horizontally—new instances can spin up on demand.  
-  - We can add caching or a message queue (e.g., Redis or RabbitMQ) without changing the core code.
+• Monorepo structure: frontend pages, shared components, and API routes in one codebase—but clearly separated.
+• Next.js App Router:
+  – Server Components fetch data from the database securely.  
+  – Client Components handle interactive UI elements (forms, tables, charts).
+• Drizzle ORM manages database access in a type-safe way.  
+• Clerk handles user authentication and session management.
 
-- **Maintainability**
-  - Code for each feature is grouped by route (authentication, dashboard).  
-  - A service layer separates complex logic from request handling.
-
-- **Performance**
-  - Lightweight Node.js handlers keep response times low.  
-  - Future use of database connection pooling and Redis for caching repeated queries.
+By running our API as serverless functions (for example, on Vercel), we get automatic horizontal scaling. Each function spins up as needed, so adding users or spikes in traffic doesn’t slow us down. The modular design (API routes as controllers, Drizzle schemas as models) keeps code organized and easy to extend or fix.
 
 ## 2. Database Management
 
-- **Database Choice**
-  - We recommend **PostgreSQL** for structured data and reliable transactions.  
-  - In-memory caching can be added later with **Redis** for session tokens or frequently read data.
+We store all data in PostgreSQL via Supabase. Key points:
 
-- **Data Storage and Access**
-  - Use an ORM like **Prisma** or **TypeORM** to map JavaScript/TypeScript objects to database tables.
-  - Connection pooling ensures efficient use of database connections under load.
-  - Migrations track schema changes over time, keeping development, staging, and production in sync.
+• Database Type: Relational (SQL)  
+• Provider: Supabase (managed PostgreSQL)
+• ORM: Drizzle (TypeScript-friendly, ensures compile-time checking of queries)
 
-- **Data Practices**
-  - Passwords are never stored in plain text—they are salted and hashed with **bcrypt** before saving.
-  - All outgoing data is typed and validated to prevent malformed records.
+Data is organized into tables (users, payments, expenses). We define schemas and migrations in the code—Supabase runs them under the hood. Drizzle’s migrations tools let us evolve the schema safely over time. We also rely on Supabase for daily backups, point-in-time recovery, and replication to ensure data durability.
 
 ## 3. Database Schema
 
-### Human-Readable Format
+Human-Readable Overview:
 
-- **Users**
-  - **id**: Unique identifier  
-  - **email**: User’s email address (unique)  
-  - **password_hash**: Securely hashed password  
-  - **created_at**: Account creation timestamp
+• **Users**
+  – id: unique user identifier  
+  – email: login email  
+  – name: display name  
+  – role: ‘student’ or ‘treasurer’  
+  – created_at: timestamp
 
-- **Sessions**
-  - **id**: Unique session record  
-  - **user_id**: Links to a user  
-  - **token**: Random string for authentication  
-  - **expires_at**: When the token stops working  
-  - **created_at**: When the session was created
+• **Payments**
+  – id: unique payment record ID  
+  – user_id: references the student who submitted it  
+  – amount: payment amount  
+  – date_submitted: when the student uploaded proof  
+  – status: ‘pending’, ‘approved’, or ‘rejected’  
+  – proof_url: link to uploaded receipt or screenshot  
+  – approved_at: timestamp when treasurer acted
 
-- **DashboardItems** *(optional for dynamic data)*
-  - **id**: Unique record  
-  - **title**: Item title  
-  - **content**: Item details  
-  - **created_at**: When the item was added
+• **Expenses**
+  – id: unique expense record ID  
+  – title: description of expense  
+  – amount: expense amount  
+  – description: optional details  
+  – date_added: when expense was logged  
+  – added_by: references the treasurer user
 
-### SQL Schema (PostgreSQL)
-```sql
--- Users table
+PostgreSQL (Drizzle) DDL Example:
+```
 CREATE TABLE users (
-  id SERIAL PRIMARY KEY,
-  email VARCHAR(255) UNIQUE NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT now()
+  id UUID PRIMARY KEY,
+  email TEXT UNIQUE NOT NULL,
+  name TEXT,
+  role TEXT NOT NULL DEFAULT 'student',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
--- Sessions table
-CREATE TABLE sessions (
-  id SERIAL PRIMARY KEY,
-  user_id INT REFERENCES users(id) ON DELETE CASCADE,
-  token VARCHAR(255) UNIQUE NOT NULL,
-  expires_at TIMESTAMPTZ NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT now()
+CREATE TABLE payments (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES users(id),
+  amount NUMERIC(10,2) NOT NULL,
+  date_submitted TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  status TEXT NOT NULL DEFAULT 'pending',
+  proof_url TEXT,
+  approved_at TIMESTAMP WITH TIME ZONE
 );
 
--- Dashboard items table
-CREATE TABLE dashboard_items (
-  id SERIAL PRIMARY KEY,
+CREATE TABLE expenses (
+  id UUID PRIMARY KEY,
   title TEXT NOT NULL,
-  content TEXT,
-  created_at TIMESTAMPTZ DEFAULT now()
+  amount NUMERIC(10,2) NOT NULL,
+  description TEXT,
+  date_added TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  added_by UUID REFERENCES users(id)
 );
 ```  
 
 ## 4. API Design and Endpoints
 
-- **Approach**: We follow a **RESTful** style, grouping related endpoints under `/api` directories.
+We follow RESTful design with Next.js API Routes. All routes live under `/app/api`.
 
-- **Key Endpoints**
-  - `POST /api/auth/register`  
-    • Accepts `{ email, password }`  
-    • Creates a new user and issues a session token  
-  - `POST /api/auth/login`  
-    • Accepts `{ email, password }`  
-    • Verifies credentials and returns a session token  
-  - `POST /api/auth/logout`  
-    • Invalidates the session token on the server  
-  - `GET /api/dashboard/data`  
-    • Requires a valid session  
-    • Returns user-specific data or dashboard items  
+Key Endpoints:
 
-- **Communication**
-  - Frontend sends JSON requests; backend replies with JSON and appropriate HTTP status codes.  
-  - Protected routes check for a valid session token (in cookies or Authorization header).
+• POST /api/payments  
+  – Purpose: Students submit a new payment record and upload proof.  
+  – Access: authenticated students only.
+
+• GET /api/payments?status=pending  
+  – Purpose: Treasurer fetches unapproved payments.  
+  – Access: treasurer only.
+
+• PATCH /api/payments/:id  
+  – Purpose: Treasurer approves or rejects a payment (update status and approved_at).  
+  – Access: treasurer only.
+
+• GET /api/expenses  
+  – Purpose: Fetch all recorded class expenses.  
+  – Access: any authenticated user.
+
+• POST /api/expenses  
+  – Purpose: Treasurer logs a new expense.  
+  – Access: treasurer only.
+
+• GET /api/dashboard-stats  
+  – Purpose: Calculate and return summary stats (total collected, total spent, current balance).  
+  – Access: authenticated users.
+
+All endpoints validate input, check user roles via Clerk’s session tokens, and then run Drizzle queries against Supabase.
 
 ## 5. Hosting Solutions
 
-- **Cloud Provider**:  
-  - **Vercel** (recommended) offers seamless Next.js deployments, auto-scaling, and built-in CDN.  
-  - Alternatively, **Netlify** or any Node.js-capable host will work.
+We use a combination of Vercel and Supabase:
 
-- **Benefits**
-  - **Reliability**: Global servers and failover across regions.  
-  - **Scalability**: Auto-scale serverless functions based on traffic.  
-  - **Cost-Effectiveness**: Pay-per-use model means low cost for small projects.
+• Vercel (Next.js)  
+  – Hosts both the frontend and API Routes as serverless functions.  
+  – Built-in CDN for static assets and edge caching.  
+  – Automatic scaling, zero-config deployments.
+
+• Supabase (Database & Auth)  
+  – Managed PostgreSQL with built-in auth, storage, and real-time features.  
+  – Free tier for small classes, easy to upgrade.
+
+Benefits:
+
+• Reliability: global edge network with automatic failover.  
+• Performance: serverless functions scale with demand, assets served from CDN.  
+• Cost-effectiveness: pay-as-you-go, generous free tiers.
 
 ## 6. Infrastructure Components
 
-- **Load Balancer**
-  - Provided by the hosting platform—distributes API requests across function instances.
+• Load Balancer / Edge Network:
+  – Vercel’s edge network routes requests to the nearest serverless function.  
+  – Automatically balances traffic and reduces latency.
 
-- **CDN (Content Delivery Network)**
-  - Vercel’s global edge network caches static assets (CSS, JS, images) for faster page loads.
+• CDN:
+  – Vercel CDN caches static assets (CSS, JS, images) close to users.  
+  – Speeds up page loads and reduces origin server load.
 
-- **Caching**
-  - **Redis** (optional) for session storage or caching dashboard queries to reduce database load.
+• Caching:
+  – Next.js ISR (Incremental Static Regeneration) for pages that change infrequently (e.g., public expense list).  
+  – SWR or React Query on the client for data-level caching and background revalidation.
 
-- **Object Storage**
-  - For file uploads or backups, integrate with AWS S3 or similar services.
-
-- **Message Queue**
-  - In future, use **RabbitMQ** or **Kafka** for background tasks (e.g., email notifications).
+• Storage:
+  – Supabase Storage for hosting uploaded payment proofs (images, PDFs).  
 
 ## 7. Security Measures
 
-- **Authentication & Authorization**
-  - Passwords hashed with **bcrypt** and salted.  
-  - Session tokens stored in secure, HttpOnly cookies or Authorization headers.  
-  - Protected endpoints verify tokens before proceeding.
+• Authentication:
+  – Clerk handles signup, login, password resets, and session management.  
+  – All API routes require a valid Clerk token.
 
-- **Data Encryption**
-  - **HTTPS/TLS** encrypts data in transit.  
-  - Database connections use SSL to encrypt data between the app and the database.
+• Authorization:
+  – Role checks in middleware ensure only Treasurers can access sensitive endpoints.  
+  – Students can only create payments and view public data.
 
-- **Input Validation**
-  - Every incoming request is validated (e.g., valid email format, password length) to prevent SQL injection or other attacks.
+• Encryption:
+  – HTTPS/TLS encryption in transit for all traffic (Vercel + Supabase).  
+  – At-rest encryption on Supabase by default.
 
-- **Web Security Best Practices**
-  - Enable **CORS** policies to limit allowed origins.  
-  - Use **CSRF tokens** or same-site cookies to prevent cross-site requests.  
-  - Set secure headers with **Helmet** or a similar middleware.
+• Data Validation:
+  – Server-side input validation to prevent SQL injection or malformed data.  
+  – File type and size checks on uploads.
+
+• Environment Variables:
+  – Secrets (`NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `CLERK_API_KEY`) stored securely in Vercel’s environment settings.
 
 ## 8. Monitoring and Maintenance
 
-- **Performance Monitoring**
-  - Integrate **Sentry** or **LogRocket** for real-time crash reporting and performance tracing.  
-  - Use Vercel’s built-in analytics to track request latencies and error rates.
+• Logging & Errors:
+  – Vercel provides real-time logs for function invocations and errors.  
+  – Optional integration with Sentry or Logflare for advanced monitoring.
 
-- **Logging**
-  - Structured logs (JSON) for all API requests and errors, shipped to a log management service like **Datadog** or **Logflare**.
+• Performance Metrics:
+  – Vercel Analytics for frontend and serverless function latency.  
+  – Supabase Dashboard for query performance and slow query logging.
 
-- **Health Checks**
-  - Define a `/health` endpoint that returns a 200 status if the service is up and the database is reachable.
-
-- **Maintenance Strategies**
-  - Automated migrations run on deploy to keep the database schema up to date.  
-  - Scheduled dependency audits and security scans (e.g., `npm audit`).
-  - Regular backups of the database (daily or weekly depending on usage).
+• Maintenance:
+  – Drizzle migrations track schema changes and can be rolled back if needed.  
+  – Regular dependency updates via automated tools (Dependabot).  
+  – Periodic security audits of dependencies and configuration.
 
 ## 9. Conclusion and Overall Backend Summary
 
-The backend for **codeguide-starter** is built on Next.js API Routes and Node.js, paired with PostgreSQL for data and optional Redis for caching. It follows a clear layered architecture that keeps code easy to maintain and extend. With RESTful endpoints for authentication and data, secure practices like password hashing and HTTPS, and hosting on Vercel for scalability and global performance, this setup meets the project’s goals for a fast, secure, and developer-friendly foundation. Future enhancements—such as background job queues, advanced monitoring, or richer data models—can be added without disrupting the core structure.
+Our backend uses Next.js API Routes and Drizzle ORM to deliver a scalable, maintainable financial application. Clerk secures user authentication and roles, Supabase manages data reliably, and Vercel hosts everything with global performance. Together, these components meet the project’s goals: a transparent, secure, and easy-to-extend class treasury management system that lets students submit payments and Treasurers approve them efficiently.
+
+Unique aspects:
+
+• Single codebase for frontend and backend streamlines development.  
+• Type-safe database queries catch errors at compile time.  
+• Serverless architecture means minimal ops overhead—focus on features, not servers.
+
+By following this structure, any developer—even without deep technical background—can understand how the backend works and where to make changes.

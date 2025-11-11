@@ -1,90 +1,74 @@
-# Tech Stack Document
+# Tech Stack Document for angkatan-cash-manager
 
-This document explains the key technologies chosen for the **codeguide-starter** project. It’s written in everyday language so anyone—technical or not—can understand why each tool was picked and how it supports the application.
+## Frontend Technologies
 
-## 1. Frontend Technologies
-The frontend is everything the user sees and interacts with. For this project, we’ve used:
+- **Next.js (App Router)**  
+  Provides a unified framework for building both pages and API routes. It enables server-side rendering for faster initial load and client-side navigation for a smooth user experience.
+- **React & TypeScript**  
+  Ensures a modular, component-based UI with type safety. TypeScript reduces runtime errors and improves developer productivity by catching mistakes early.
+- **Tailwind CSS v4**  
+  A utility-first CSS framework that makes styling fast and consistent. It allows building responsive layouts without writing custom CSS from scratch.
+- **shadcn/ui**  
+  A collection of prebuilt, accessible UI components (forms, buttons, cards, tables). These components integrate seamlessly with Tailwind to accelerate UI development and maintain a polished look.
+- **Server & Client Components**  
+  Next.js lets us fetch sensitive data on the server while keeping interactive elements (like forms and charts) on the client. This split improves performance and security.
 
-- **Next.js (App Router)**
-  - A React framework that makes page routing, server-side rendering, and API routes very simple.
-  - Enhances user experience by pre-rendering pages on the server or at build time, leading to faster initial load.
-- **React 18**
-  - The underlying library for building user interfaces with reusable components.
-  - Provides a smooth, interactive experience thanks to its virtual DOM and modern hooks.
-- **TypeScript**
-  - A superset of JavaScript that adds types (labels for data).
-  - Helps catch errors early during development and makes the code easier to maintain.
-- **CSS (globals.css & theme.css)**
-  - **globals.css** applies base styles (fonts, colors, resets) across the entire app.
-  - **dashboard/theme.css** defines the look and feel specific to the dashboard area.
-  - This separation keeps styles organized and avoids accidental style conflicts.
+## Backend Technologies
 
-By combining these tools, we have a clear structure (Next.js folders for pages and layouts), safer code (TypeScript), and flexible styling with vanilla CSS.
+- **Next.js API Routes**  
+  Built-in backend endpoints under `/app/api` for handling business logic (payment submissions, approvals, expense queries). Keeps front- and back-end in one codebase for simplicity and ease of deployment.
+- **Drizzle ORM**  
+  A TypeScript-first ORM for PostgreSQL. Provides type-safe database queries and migrations. Ensures data integrity and prevents common SQL mistakes.
+- **PostgreSQL (via Supabase)**  
+  A reliable, scalable relational database. Supabase offers a managed PostgreSQL instance with built-in authentication, real-time updates, and UI dashboard.
+- **Go (Optional)**  
+  If a separate backend is preferred, a Go API can replace Next.js API routes. Go offers high performance and a small memory footprint, suitable for backend microservices.
 
-## 2. Backend Technologies
-The backend handles data, user accounts, and the logic behind the scenes. Our choices here are:
+## Infrastructure and Deployment
 
-- **Next.js API Routes**
-  - Allows us to write server-side code (`route.ts` files) alongside our frontend in the same project.
-  - Runs on Node.js, so we can handle requests like sign-up, sign-in, and data fetching in one place.
-- **Node.js Runtime**
-  - The JavaScript environment on the server that executes our API routes.
-- **bcrypt** (npm package)
-  - A library for hashing passwords securely before storing them.
-  - Ensures that even if someone got access to our data, raw passwords aren’t visible.
-- **(Optional) NextAuth.js or JWT**
-  - While this starter kit shows a custom authentication flow, it can easily integrate services like NextAuth.js for email-based login or JWT (JSON Web Tokens) for stateless sessions.
+- **Version Control: Git & GitHub**  
+  Tracks changes, supports collaborative development, and integrates with CI/CD tools.
+- **Hosting: Vercel (Recommended)**  
+  Optimized for Next.js, provides automatic deployments on every push, global CDN, and serverless functions for API routes.
+- **CI/CD: GitHub Actions**  
+  Automates testing, linting, and deployments. Ensures code quality by running tests on every pull request and deploys only passing changes.
+- **Environment Management**  
+  Uses environment variables for sensitive credentials (database URLs, Clerk keys). Vercel or GitHub Actions secrets keep them secure.
 
-These components work together to receive user credentials, verify or store them securely, manage sessions or tokens, and deliver protected data back to the frontend.
+## Third-Party Integrations
 
-## 3. Infrastructure and Deployment
-Infrastructure covers where and how we host the app, as well as how changes get delivered:
+- **Clerk**  
+  A drop-in authentication service for sign-up, sign-in, and user management. Offers ready-made UI components and hooks (`<ClerkProvider>`, `useUser`) for role-based access control.
+- **Supabase**  
+  Provides the PostgreSQL database, authentication, and storage. Simplifies setup compared to self-hosted databases, with a GUI for managing schemas and data.
+- **Optional Analytics**  
+  Can integrate tools like Vercel Analytics or Google Analytics to track user behavior and performance metrics.
 
-- **Git & GitHub**
-  - Version control system (Git) and remote hosting (GitHub) keep track of all code changes and allow team collaboration.
-- **Vercel (or Netlify)**
-  - A popular hosting service optimized for Next.js, with one-click deployments and global content delivery.
-  - Automatically rebuilds and deploys the site whenever code is pushed to the main branch.
-- **GitHub Actions (CI/CD)**
-  - Automates tasks like linting (ESLint), formatting (Prettier), and running any tests you add.
-  - Ensures that only clean, tested code goes live.
+## Security and Performance Considerations
 
-Together, these tools provide a reliable, scalable setup where every code change is tested and deployed quickly, with minimal manual work.
+- **Authentication & Authorization**  
+  - Clerk enforces secure sign-in flows and session management.  
+  - Role-based checks (student vs. treasurer) in API routes and page middleware prevent unauthorized access.
+- **Data Protection**  
+  - HTTPS always encrypts data in transit.  
+  - Environment variables keep secrets out of the codebase.
+- **Type Safety**  
+  Drizzle ORM and TypeScript ensure that only valid queries run against the database, reducing runtime errors and injection risks.
+- **Performance Optimizations**  
+  - Server Components fetch data at build or request time, reducing bundle size.  
+  - Client Components handle interactivity without blocking the server.  
+  - Tailwind’s utility classes minimize CSS footprint.  
+  - Vercel’s global CDN and edge caching deliver assets quickly to users worldwide.
 
-## 4. Third-Party Integrations
-While this starter kit is minimal by design, it already includes or can easily add:
+## Conclusion and Overall Tech Stack Summary
 
-- **bcrypt**
-  - For secure password hashing (included as an npm dependency).
-- **NextAuth.js** (optional)
-  - A full-featured authentication library supporting email/password, OAuth, and more.
-- **Sentry or LogRocket** (optional)
-  - For real-time error tracking and performance monitoring in production.
+This project combines modern web technologies to deliver a secure, performant, and user-friendly treasury management app:
 
-These integrations help extend the app’s capabilities without building every feature from scratch.
+- **Next.js** unites frontend and backend into one framework.  
+- **React + TypeScript** deliver a robust, type-safe UI.  
+- **Tailwind CSS & shadcn/ui** accelerate the creation of responsive, accessible interfaces.  
+- **Drizzle ORM + Supabase (PostgreSQL)** ensure reliable data management with type-checked queries.  
+- **Clerk** provides seamless authentication and role-based access control.  
+- **Vercel + GitHub Actions** automate deployment and maintain high availability.
 
-## 5. Security and Performance Considerations
-We’ve baked in several measures to keep users safe and the app running smoothly:
-
-Security:
-- Passwords are never stored in plain text—bcrypt hashes them with a random salt.
-- API routes can implement CSRF protection and input validation to block malicious requests.
-- Session tokens or cookies are marked secure and HttpOnly to prevent theft via JavaScript.
-
-Performance:
-- Server-side rendering (SSR) and static site generation (SSG) in Next.js deliver pages faster.
-- Code splitting and lazy-loaded components ensure users only download what they need.
-- Global CSS and theme files are small and cached by the browser for quick repeat visits.
-
-These strategies work together to give users a fast, secure experience every time.
-
-## 6. Conclusion and Overall Tech Stack Summary
-In building **codeguide-starter**, we chose technologies that:
-
-- Align with modern web standards (Next.js, React, TypeScript).
-- Provide a clear, file-based project structure for rapid onboarding.
-- Offer built-in support for server-side rendering, API routes, and static assets.
-- Emphasize security through password hashing, session management, and safe defaults.
-- Enable easy scaling and future enhancements via modular code and optional integrations.
-
-This stack strikes a balance between simplicity for newcomers and flexibility for experienced teams. It accelerates development of a secure authentication flow and a polished dashboard, while leaving room to plug in databases, test suites, and advanced features as the project grows.
+Together, these technologies support rapid development, easy maintenance, and a polished experience for both Treasurers and Students. This stack is flexible enough to add new features—like detailed reporting or external payment processors—while maintaining security and performance at every step.
